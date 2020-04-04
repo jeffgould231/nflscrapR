@@ -1,0 +1,65 @@
+---
+title: "Pittsford's Best Post-Draft Power Rankings"
+author: "Jefe Gould"
+date: "8/30/2019"
+output: html_document
+---
+<script>
+$(document).ready(function(){
+    $('[data-toggle="popover"]').popover(); 
+});
+</script>
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(kableExtra)
+```
+
+## Post Draft Power Rankings
+
+As has been already said numerous times, we absolutely killed last weekend. Shout Out Austin for booking the AirBnB.  Shout out to Mark's stomach for keeping it together all weekend. Shout out to Ron for fantastic content. Shout out to Brett and me for running a smooth draft. 
+
+
+
+```{r echo = FALSE, results = 'asis', warning=FALSE, message=FALSE}
+library(kableExtra)
+library(formattable)
+rankings_table <-
+  read_csv("~/Desktop/nflscrapR/Output/post_draft_rankings.csv")
+rankings_table %>%
+  mutate(Team = cell_spec(Team, popover = spec_popover(content = rankings_table$Popover,
+    title = NULL,                           # title will add a Title Panel on top
+    position = "top")),
+         FantasyPros = ifelse(
+    FantasyPros <= 3,
+    cell_spec(FantasyPros, background = "darkgreen", color = "white"),
+    ifelse(
+      FantasyPros %in% c(4:6),
+      cell_spec(FantasyPros, background = "green", color = "white"),
+      ifelse(
+        FantasyPros %in% c(7:9),
+        cell_spec(FantasyPros, background = "orange", color = "white"),
+        cell_spec(FantasyPros, background = "red", color = "white")
+      )
+    )
+  ),
+  `Week 1 Line Up` = ifelse(str_detect(`Week 1 Line Up`, "A"), cell_spec(`Week 1 Line Up`, color = "darkgreen"),
+                            ifelse(str_detect(`Week 1 Line Up`, "C|D"), cell_spec(`Week 1 Line Up`, color = "red"), `Week 1 Line Up`)),
+  Playoffs = cell_spec(Playoffs, font_size = 20 * sqrt(Playoffs))) %>%
+  select(-Popover) %>%
+  kable(escape = F) %>%
+  kable_styling(bootstrap_options = c("hoover", "striped"),
+                full = T) %>%
+  add_header_above(c(
+    " " = 1,
+    "Rankings" = 3,
+    "Summary" = 1
+  ))
+
+
+```
+
+![Yea this looks like the face of a guy who just drafted one of the three worst teams in the league](Ron.jpg)
+
+https://drive.google.com/uc?export=view&id=1bndwwZA0_4FpwwoXnaB3JU99rCLQMPOl
+

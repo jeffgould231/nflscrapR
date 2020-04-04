@@ -1,0 +1,118 @@
+---
+title: "Pittsford's Best"
+author: "Jeff Gould"
+date: "10/24/2019"
+output:
+  html_document: default
+  pdf_document: default
+---
+<script>
+$(document).ready(function(){
+    $('[data-toggle="popover"]').popover(); 
+});
+</script>
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(kableExtra)
+require(plotly)
+pbest <- read_csv("~/Desktop/pittsfords_best_2019.csv")
+
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r echo = FALSE, results = 'asis', warning=FALSE, message=FALSE}
+pbest.chart <- gather(pbest, 2:13, key = "Team", value = "Points")
+
+autism <- pbest.chart %>% filter(Team %in% c("Jeff", "Brian", "Will"))
+wicked_witch <- pbest.chart %>% filter(Team %in% c("Brett", "Mark", "Ronnie"))
+homosexuality <- pbest.chart %>% filter(Team %in% c("Austin", "Kaz", "Joe"))
+west <- pbest.chart %>% filter(Team %in% c("Joe", "Gibran", "Deven"))
+
+graph <- ggplot(pbest.chart, aes(x = Week, y = Points)) +
+  geom_line(aes(color = Team)) +
+  geom_point(aes(color = Team)) +
+  theme_bw() +
+  labs(title = "Pit") +
+  scale_color_manual(
+    values = c(
+      "blue",
+      "orange",
+      "green",
+      "pink",
+      "black",
+      "brown",
+      "red",
+      "grey50",
+      "yellow",
+      "lightblue",
+      "darkgreen",
+      "purple"
+    )
+  )
+
+plotly::ggplotly(graph, width = 1000, height = 600)
+
+
+
+ggplot(autism, aes(x = Week, y = Points)) +
+  geom_line(aes(color = Team)) +
+  geom_point(aes(color = Team)) +
+  theme_bw() +
+  labs(title = "Autism Is A Specturm: Points by Week") +
+  scale_color_manual(
+    values = c(
+      "green",
+      "red",
+      "purple"
+    )
+  )
+
+ggplot(wicked_witch, aes(x = Week, y = Points)) +
+  geom_line(aes(color = Team)) +
+  geom_point(aes(color = Team)) +
+  theme_bw() +
+  labs(title = "Wicked Witches: Points by Week") +
+  scale_color_manual(
+    values = c(
+      "orange",
+      "lightblue",
+      "darkgreen"
+    )
+  )
+
+
+ggplot(homosexuality, aes(x = Week, y = Points)) +
+  geom_line(aes(color = Team)) +
+  geom_point(aes(color = Team)) +
+  theme_bw() +
+  labs(title = "Homosexuality Is A Spectrum: Points by Week") +
+  scale_color_manual(
+    values = c(
+      "blue",
+      "brown",
+      "yellow"
+    )
+  )
+
+ggplot(west, aes(x = Week, y = Points)) +
+  geom_line(aes(color = Team)) +
+  geom_point(aes(color = Team)) +
+  theme_bw() +
+  labs(title = "West: Points by Week") +
+  scale_color_manual(
+    values = c(
+      "pink",
+      "black",
+      "grey50"
+    )
+  )
+
+
+```
+
