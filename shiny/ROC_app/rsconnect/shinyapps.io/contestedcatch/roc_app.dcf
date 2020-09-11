@@ -1,0 +1,13 @@
+name: ROC_app
+title: ROC_app
+username:
+account: contestedcatch
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 2514214
+bundleId: 3600838
+url: https://contestedcatch.shinyapps.io/ROC_app/
+when: 1599452162.89686
+asMultiple: FALSE
+asStatic: FALSE
+ignoredFiles: pbp_2014.rds|pbp_2015.rds|pbp_2016.rds|pbp_2017.rds|pbp_2018.rds|pbp_2019.rds|ROC_report.html|ROC_report.Rmd|Screen Recording.mov

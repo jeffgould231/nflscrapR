@@ -1,0 +1,13 @@
+name: LineupGenerator
+title: LineupGenerator
+username:
+account: contestedcatch
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 2558556
+bundleId: 3612398
+url: https://contestedcatch.shinyapps.io/LineupGenerator/
+when: 1599686215.49559
+asMultiple: FALSE
+asStatic: FALSE
+ignoredFiles: instructions.html|2019 lineups

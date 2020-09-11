@@ -1,0 +1,13 @@
+name: QB_rolling_averages
+title: QB_rolling_averages
+username:
+account: contestedcatch
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 2521718
+bundleId: 3348603
+url: https://contestedcatch.shinyapps.io/QB_rolling_averages/
+when: 1593791933.20592
+asMultiple: FALSE
+asStatic: FALSE
+ignoredFiles: pbp_2009.rds|pbp_2010.rds|pbp_2011.rds|pbp_2012.rds|pbp_2013.rds|pbp_2014.rds|pbp_2015.rds|pbp_2016.rds|pbp_2017.rds|pbp_2018.rds|pbp_2019.rds

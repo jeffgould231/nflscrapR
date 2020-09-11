@@ -1,0 +1,58 @@
+---
+title: "ROC Report"
+author: "Jeff Gould"
+date: "7/7/2020"
+output: 
+  html_document:
+    md_extensions: +raw_html
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F)
+library(tidyverse)
+library(plotly)
+library(mgcv)
+
+source("ROC_functions.R")
+teams_colors_logos <- readRDS("teams_colors_logos.rds")
+pbp_all <- readRDS("pbp_all.rds") %>% distinct() %>% filter(season == 2019, week %in% c(1:16))
+source("theme_CC.R")
+```
+
+## Receiver Opportunity Composite Score (ROC Score)
+
+The ROC Score is a Contested Catch metric that was built using NFL play-by-play data to better predict WR fantasy scoring over the course of a season. It is an in-season tool, designed to be used over a 4-5 game window to predict fantasy scoring over the next 3-5 weeks. Right now we show a static ROC report over the course of the 2019 season, weeks 1-16, but once the 2020 season begins we will update this page weekly.
+
+Additionally, we have a fully interactive [app available here](htps://contestedcatch.shinyapps.io/ROC_app) for more detailed analysis and data research.
+
+
+```{r message=FALSE, warning=FALSE, fig.width=12, fig.height=9}
+ROC_data <- make_ROC(pbp_data = pbp_all, weeks = c(1:16), positions = c("WR", "TE", "RB", NA),
+                                szn = 2019, reception_min = 25)
+
+ggplot(ROC_data %>% rename(Receiver = receiver) %>% filter(Receptions >= 50), 
+                              aes(x = ROC, y = fantasy_points, label1 = TargetShare, 
+                                  label2 = Targets,
+                                  label3 = PlayerAirYards, 
+                                  label4 = AirYardShare, 
+                                  label5 = Receiver,
+                                  label6 = season)) +
+                         geom_point(aes(color = posteam), show.legend = F) +
+                         scale_color_manual(values = teams_colors_logos$team_color, breaks = teams_colors_logos$team_abbr) +
+                         scale_x_continuous(limits = c(0,max(100, max(ROC_data$ROC))), breaks = seq(0,200,20)) +
+                         labs(y = "0.5 PPR Fantasy Receiving Points", 
+                              title = "Contested Catch: Receiver Opportunity Composite (ROC Score)", 
+                              x = "ROC Score") +
+                         theme_CC() +
+  ggrepel::geom_text_repel(aes(label = Receiver))
+
+
+get_ROC_buys(ROC_data, c(1:16))
+
+get_ROC_sells(ROC_data, c(1:16))
+
+ROC_table(ROC_data, "All") %>% kable() %>%
+  kable_styling(c("striped", "hover"), full_width = F)
+
+
+```
