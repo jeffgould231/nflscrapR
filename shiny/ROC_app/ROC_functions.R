@@ -2,7 +2,7 @@
 
 make_team_stats <- function(pbp, weeks = c(1:16), szn = 2019){
   data <- pbp %>%
-    filter(play_type == "pass", week %in% weeks, pass_attempt == 1, season %in% szn, !is.na(air_yards)) %>%
+    filter(play_type == "pass", week %in% weeks, pass_attempt == 1, season %in% szn) %>%
     group_by(posteam, season) %>%
     summarise(Attempts = n(),
               Completions = sum(complete_pass),
@@ -61,7 +61,7 @@ merge_player_team <- function(player_data, team_data){
 #   data <- bind_rows(data, make_ROC(c(i:(i+9)), pbp_all) %>% filter(TeamGames == 10))
 # }
 
-make_ROC <- function(weeks, pbp_data, positions = c("RB", "WR", "TE"), reception_min = 10, szn = 2019){
+make_ROC <- function(weeks, pbp_data, positions = c("RB", "WR", "TE"), target_min = 10, szn = 2019){
   
   load("ROC_model.rda")
   
@@ -69,15 +69,15 @@ make_ROC <- function(weeks, pbp_data, positions = c("RB", "WR", "TE"), reception
   player_stats <- make_player_stats(pbp_data, weeks = weeks, szn)
   
   joined_data <- merge_player_team(player_stats, team_stats) %>%
+    filter(Targets >= target_min) %>%
     mutate(Targets = Targets * (5 / TeamGames),
            PlayerAirYards = PlayerAirYards * (5 / TeamGames),
            PlayerRedZoneTargets = PlayerRedZoneTargets * (5 / TeamGames),
            PlayerFirstDowns = PlayerFirstDowns * (5 / TeamGames)
     ) %>%
-    ungroup() %>%
-    filter(Receptions >= reception_min)
+    ungroup() 
   
-  joined_data$projected = 1 / predict(ROC_model, joined_data)
+  joined_data$projected = predict(ROC_model, joined_data, ncomp = 2)
   
   # joined_data <- joined_data %>%
   #   mutate(ROC = case_when(
@@ -89,7 +89,7 @@ make_ROC <- function(weeks, pbp_data, positions = c("RB", "WR", "TE"), reception
   #     TeamGames %in% c(8) ~ scales::rescale(projected, to = c(0,100), from = c(4,18)),
   #     TeamGames >= 9 ~ scales::rescale(projected, to = c(0,100), from = c(4,18))
   #   ))
-  joined_data$ROC = scales::rescale(joined_data$projected, to = c(10,100), from = c(2,21))
+  joined_data$ROC = scales::rescale(joined_data$projected, to = c(10,100), from = c(4,21))
   
   
   joined_data <- joined_data %>%
@@ -103,87 +103,71 @@ make_ROC <- function(weeks, pbp_data, positions = c("RB", "WR", "TE"), reception
   return(joined_data)
 }
 
-get_ROC_sells <- function(data, weeks, n = 7){
+get_ROC_sells <- function(data, weeks, n = 10){
   require(kableExtra)
   
   sells <- data %>%
-    filter(teamPlayers.position != "RB") %>%
+    filter(teamPlayers.position != "RB",
+           projected < 14) %>%
     select(receiver, posteam, season, ROC, fantasy_points, projected, TeamGames, games) %>%
-    mutate(fantasy_point_diff = fantasy_points  - projected * TeamGames,
-           fantasy_percent_diff = round(100 * fantasy_point_diff / fantasy_points, 2),
-           projected = projected * TeamGames) %>%
-    top_n(20, fantasy_point_diff) %>%
-    top_n(n, fantasy_percent_diff) %>%
-    arrange(desc(fantasy_percent_diff)) %>%
+    mutate(fantasy_point_diff = round(fantasy_points / TeamGames  - projected, 1),
+           #fantasy_percent_diff = round(100 * fantasy_point_diff / projected, 2),
+           #projected = projected,
+           fantasy_points = fantasy_points / TeamGames) %>%
+    #top_n(20, -fantasy_point_diff) %>%
+    #top_n(n, -fantasy_point_diff) %>%
+    filter(fantasy_point_diff > 1) %>%
+    arrange(desc(fantasy_point_diff)) %>%
     rename("Player" = receiver, Team = posteam, Season = season, 
-           `Fantasy Points` = fantasy_points, `Exp. Points` = projected,
-           `Points Over Exp` = fantasy_point_diff, `%-Over Exp` = fantasy_percent_diff) %>%
+           `Fantasy PPG` = fantasy_points, 
+           `Proj. PPG` = projected,
+           `PPG +/-` = fantasy_point_diff, 
+           #`%-Over Exp` = fantasy_percent_diff
+    ) %>%
     select(-games, -TeamGames)
-  
-  # buys <- data %>%
-  #   filter(projected >= 8, teamPlayers.position != "RB") %>%
-  #   select(receiver, posteam, season, ROC, fantasy_points, projected, TeamGames, games) %>%
-  #   mutate(fantasy_point_diff = fantasy_points  - projected * TeamGames,
-  #          fantasy_percent_diff = round(100 * fantasy_point_diff / fantasy_points, 2),
-  #          projected = projected * TeamGames) %>%
-  #   top_n(20, -fantasy_point_diff) %>%
-  #   top_n(n, -fantasy_percent_diff) %>%
-  #   arrange(fantasy_percent_diff) %>%
-  #   rename("Player" = receiver, Team = posteam, Season = season, 
-  #          `Fantasy Points` = fantasy_points, `Exp. Points` = projected,
-  #          `Points Under Expected` = fantasy_point_diff, `%-Under Expected` = fantasy_percent_diff) %>%
-  #   select(-games, -TeamGames)
-  
-  
-  return(
-    sells %>%
-      #cbind(buys) %>%
-      knitr::kable() %>%
-      kable_styling(c("striped", "hover"), full_width = F) %>%
-      add_header_above(c("Over Producers" = 8), align = "l")
-  )
+ 
+  return(sells)
+  # return(
+  #   sells %>%
+  #     #cbind(buys) %>%
+  #     knitr::kable() %>%
+  #     kable_styling(c("striped", "hover"), full_width = F) %>%
+  #     add_header_above(c("Over Producers" = 8), align = "l")
+  # )
   
 }
 
-get_ROC_buys <- function(data, weeks, n = 7){
+get_ROC_buys <- function(data, weeks, n = 10){
   require(kableExtra)
-  
-  # sells <- data %>%
-  #   filter(teamPlayers.position != "RB") %>%
-  #   select(receiver, posteam, season, ROC, fantasy_points, projected, TeamGames, games) %>%
-  #   mutate(fantasy_point_diff = fantasy_points  - projected * TeamGames,
-  #          fantasy_percent_diff = round(100 * fantasy_point_diff / fantasy_points, 2),
-  #          projected = projected * TeamGames) %>%
-  #   top_n(20, fantasy_point_diff) %>%
-  #   top_n(n, fantasy_percent_diff) %>%
-  #   arrange(desc(fantasy_percent_diff)) %>%
-  #   rename("Player" = receiver, Team = posteam, Season = season, 
-  #          `Fantasy Points` = fantasy_points, `Exp. Points` = projected,
-  #          `Points Over Expected` = fantasy_point_diff, `%-Over Expected` = fantasy_percent_diff) %>%
-  #   select(-games, -TeamGames)
   
   buys <- data %>%
     filter(projected >= 8, teamPlayers.position != "RB") %>%
     select(receiver, posteam, season, ROC, fantasy_points, projected, TeamGames, games) %>%
-    mutate(fantasy_point_diff = fantasy_points  - projected * TeamGames,
-           fantasy_percent_diff = round(100 * fantasy_point_diff / fantasy_points, 2),
-           projected = projected * TeamGames) %>%
-    top_n(20, -fantasy_point_diff) %>%
-    top_n(n, -fantasy_percent_diff) %>%
-    arrange(fantasy_percent_diff) %>%
+    mutate(fantasy_point_diff = round(fantasy_points / TeamGames  - projected, 1),
+           #fantasy_percent_diff = round(100 * fantasy_point_diff / projected, 2),
+           #projected = projected,
+           fantasy_points = fantasy_points / TeamGames) %>%
+    #top_n(20, -fantasy_point_diff) %>%
+    #top_n(n, -fantasy_point_diff) %>%
+    filter(fantasy_point_diff < -1) %>%
+    arrange(fantasy_point_diff) %>%
     rename("Player" = receiver, Team = posteam, Season = season, 
-           `Fantasy Points` = fantasy_points, `Exp. Points` = projected,
-           `Points Under Exp` = fantasy_point_diff, `%-Under Exp` = fantasy_percent_diff) %>%
+           `Fantasy PPG` = fantasy_points, 
+           `Proj. PPG` = projected,
+           `PPG +/-` = fantasy_point_diff, 
+           #`%-Over Exp` = fantasy_percent_diff
+           ) %>%
     select(-games, -TeamGames)
+  return(buys)
   
   
-  return(
-    buys %>%
-      #cbind(buys) %>%
-      knitr::kable() %>%
-      kable_styling(c("striped", "hover"), full_width = F) %>%
-      add_header_above(c("Under Producers" = 8), align = "l")
-  )
+  # return(
+  #   buys %>%
+  #     #cbind(buys) %>%
+  #     knitr::kable() %>%
+  #     kable_styling(c("striped", "hover"), full_width = F) %>%
+  #     add_header_above(c("Under Producers" = 8), align = "l")
+  #)
   
 }
 

@@ -6,20 +6,26 @@ library(ggimage)
 setwd("~/Documents/nflscrapR/")
 team_ids <- teams_colors_logos %>% pull(team_id)
 
-# quarterbacks <- nflfastR::fast_scraper_roster(team_ids, as.character(c(2001:2019)), pp = T) %>%
-#   filter(teamPlayers.position == "QB") %>% 
-#   mutate_at(vars(team.abbr), funs(case_when(
-#     . %in% "JAC" ~ "JAX",
-#     . %in% "STL" ~ "LA",
-#     . %in% "SL" ~ "LA",
-#     . %in% "ARZ" ~ "ARI",
-#     . %in% "BLT" ~ "BAL",
-#     . %in% "CLV" ~ "CLE",
-#     . %in% "HST" ~ "HOU",
-#     . %in% "SD" ~ "LAC",
-#     TRUE ~ .
-#   ))) 
-# saveRDS(quarterbacks, "Data/QBsAll.rds")
+rosters <- nflfastR::fast_scraper_roster(team_ids, as.character(c(2001:2019)), pp = T) %>%
+  #filter(teamPlayers.position == "QB") %>%
+  mutate_at(vars(team.abbr), funs(case_when(
+    . %in% "JAC" ~ "JAX",
+    . %in% "STL" ~ "LA",
+    . %in% "SL" ~ "LA",
+    . %in% "ARZ" ~ "ARI",
+    . %in% "BLT" ~ "BAL",
+    . %in% "CLV" ~ "CLE",
+    . %in% "HST" ~ "HOU",
+    . %in% "SD" ~ "LAC",
+    TRUE ~ .
+  )))
+saveRDS(rosters, "Data/RostersAll.rds")
+
+rosters_work <- readRDS("Data/RostersAll.rds") %>%
+  mutate(playerName = str_c(str_sub(teamPlayers.firstName,1,1), teamPlayers.lastName, sep = ".")) %>%
+  filter(teamPlayers.position %in% c("QB", "RB", "WR", "TE", "FB", "HB")) %>%
+  select(team.season, playerName, team.abbr, teamPlayers.gsisId) %>%
+  distinct()
 
 quarterbacks <- readRDS("Data/QBsAll.rds") %>%
   mutate(name = str_c(str_sub(teamPlayers.firstName, 1, 1), teamPlayers.lastName, sep = ".")) %>%
@@ -27,7 +33,16 @@ quarterbacks <- readRDS("Data/QBsAll.rds") %>%
          teamPlayers.lastName, name, teamPlayers.gsisId) %>%
   distinct()
 
-pbp_all <- readRDS("Data/pbp_all.rds")
+
+
+#pbp_all <- readRDS("Data/pbp_all.rds")
+seasons <- c(2015:2020)
+
+load_season <- function(year){
+  read_rds(glue::glue("data/pbp_{year}.rds"))
+}
+
+pbp_all <- map_dfr(seasons, load_season)
 
 penalty_list <- c(
   NA, "Offensive Pass Interference", "Defensive Pass Interference","Defensive Holding", "Roughing the Passer",
@@ -39,14 +54,25 @@ pbp_work <- pbp_all %>%
   distinct() %>%
   filter((pass == 1 | rush == 1), 
          !is.na(epa), 
-         name %in% quarterbacks$name, 
-         game_type == "REG") %>%
-  left_join(quarterbacks, by = c("name" = "name", "posteam" = "team.abbr", "season" = "team.season")) %>%
+         season_type == "REG") %>%
+  mutate(Id = ifelse(!is.na(passer_player_id), passer_player_id, 
+                     ifelse(!is.na(rusher_player_id), rusher_player_id, 
+                            NA))) %>%
+  left_join(rosters_work, by = c("posteam" = "team.abbr", "season" = "team.season", "name" = "playerName")) %>%
+  mutate(Id = ifelse(is.na(Id), teamPlayers.gsisId, Id)) %>%
+  select(-teamPlayers.gsisId) %>%
+  left_join(rosters_work, by = c("posteam" = "team.abbr", "season" = "team.season", "Id" = "teamPlayers.gsisId")) %>%
+  mutate(name = ifelse(is.na(name), playerName, name)) %>%
+  select(-playerName) %>%
+  left_join(quarterbacks, by = c("name" = "name", "posteam" = "team.abbr", 
+                                 "season" = "team.season", "Id" = "teamPlayers.gsisId")) %>%
   filter(teamPlayers.position == "QB") %>%
+  nflfastR::add_qb_epa() %>%
   mutate(epa = ifelse(complete_pass == 1 & fumble_lost == 1, comp_air_epa, epa)) %>%
-  rename(Id = teamPlayers.gsisId) %>%
+  #rename(Id = teamPlayers.gsisId) %>%
   arrange(name, Id, game_date, desc(game_seconds_remaining))
 
+    
 # quarterbacks_work <- pbp_work %>% 
 #   group_by(name, Id) %>% 
 #   summarise(passes = sum(pass_attempt, na.rm = T)) %>% 
@@ -55,7 +81,7 @@ pbp_work <- pbp_all %>%
 
 pbp_work <- pbp_work %>%
   group_by(name, Id) %>%
-  mutate(rolling_epa = zoo::rollapply(epa, 300, mean, na.rm = T, align = "right", fill = NA),
+  dplyr::mutate(rolling_epa = zoo::rollapply(epa, 300, mean, na.rm = T, align = "right", fill = NA),
          rolling_cpoe = zoo::rollapply(cpoe, 300, mean, na.rm = T, align = "right", fill = NA),
          play = row_number()) %>%
   ungroup() %>%
@@ -229,7 +255,7 @@ rolling_epa_facet <- function(plot_quarterbacks,
   return(graph)
 }
 
-plot_quarterbacks <- c("P.Manning", "T.Romo")
+plot_quarterbacks <- c("J.Allen", "L.Jackson", "S.Darnold", "B.Mayfield")
 
 rolling_DAK_facet <- function(plot_quarterbacks, 
                               first_season = NULL, 
@@ -360,12 +386,15 @@ rolling_cpoe_graph(qbs_2016, Subtitle = "Class of 2016 Quarterbacks")
 rolling_cpoe_graph(qbs_2017, Subtitle = "Class of 2017 Quarterbacks")
 rolling_cpoe_graph(qbs_2018, Subtitle = "Class of 2018 Quarterbacks")
 
-rolling_epa_facet(plot_quarterbacks = c("P.Rivers", "E.Manning", "B.Roethlisberger"), 
-                  Subtitle = "Peyton Manning and Some Scrub", first_season = 2006,
+rolling_epa_graph(c("C.Newton", "J.Allen"), Subtitle = "Josh Allen & Cam Newton")
+rolling_DAK_graph(c("C.Newton", "J.Allen"), Subtitle = "Josh Allen & Cam Newton")
+
+rolling_epa_facet(plot_quarterbacks = c("A.Smith"), 
+                  Subtitle = "Alex Smith", first_season = 2006,
                   last_season = 2019)
 
-rolling_DAK_facet(plot_quarterbacks = c("P.Manning", "T.Romo"), 
-                  Subtitle = "Peyton Manning and Tony Romo",
-                  last_season = 2015)
+rolling_DAK_facet(plot_quarterbacks = c("A.Smith"), 
+                  Subtitle = "Alex Smith", first_season = 2006,
+                  last_season = 2019)
 
 

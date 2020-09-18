@@ -3,6 +3,7 @@ library(shiny)
 library(tidyverse)
 library(plotly)
 library(mgcv)
+library(pls)
 
 teams_colors_logos <- readRDS("teams_colors_logos.rds")
 
@@ -14,11 +15,12 @@ teams_colors_logos <- readRDS("teams_colors_logos.rds")
 #   select(play_type, week, pass_attempt, season, receiver, receiver_id, posteam, season, teamPlayers.position,
 #          yards_gained, complete_pass, touchdown, epa, first_down, air_yards, yardline_100, game_id)
 #  saveRDS(pbp_all, "pbp_all.rds") 
-pbp_all <- readRDS("pbp_all.rds") %>% distinct() %>% select(-teamPlayers.position)
+pbp_all <- readRDS("pbp_all.rds") %>% distinct() #%>% select(-teamPlayers.position)
 player_ids <- read.csv("id_database.csv") %>% select(pos, id_nfl_new) %>% distinct() %>% filter(!is.na(id_nfl_new))
 pbp_all <- pbp_all %>%
   left_join(player_ids, by = c("receiver_id" = "id_nfl_new")) %>%
-  rename(teamPlayers.position = pos)
+  rename(teamPlayers.position = pos) %>%
+  mutate(air_yards = ifelse(air_yards == -82, 18, air_yards))
  # ROC_model <- readRDS("ROC_model.rds")
 
 
@@ -33,12 +35,11 @@ ui <- fluidPage(
     
     fluidRow(column(1, img(src = "ContestedCatchLogo.png", height = 125)),
              column(2, offset = 1, selectInput("seasons", "Choose Seasons to include:",
-                                   selected = 2019, multiple = T, choices = c(2014:2019)),
-                    submitButton("Update")),
+                                   selected = 2020, multiple = T, choices = c(2014:2020))),
              column(2, selectInput("weeks", "Choose weeks to include:", 
-                                   selected = c(1:16), multiple = T, choices = c(1:21))),
-             column(1, numericInput("reception_floor", "Reception Minimum", 
-                                    min = 0, max = 75, value = 25, step = 5)),
+                                   selected = 1, multiple = T, choices = c(1:21))),
+             column(1, numericInput("target_floor", "Target Minimum", 
+                                    min = 0, max = 150, value = 3, step = 5)),
              column(1, selectInput("team", "Select Team for table", 
                                    selected = "All", choices = c("All", 
                                                                  teams_colors_logos$team_abbr[
@@ -52,31 +53,12 @@ ui <- fluidPage(
                     ),
     br(),
 
-    # Sidebar 
-    # sidebarLayout(fluid = FALSE,
-    #     sidebarPanel(
-    #       selectInput("seasons", "Choose Seasons to include:",
-    #                   selected = 2019, multiple = T, choices = c(2014:2019)),
-    #         selectInput("weeks", "Choose weeks to include:", selected = c(1:16), multiple = T, choices = c(1:21)),
-    #         numericInput("reception_floor", "Reception Minimum", min = 0, max = 75, value = 25, step = 5),
-    #       selectInput("team", "Select Team for table", 
-    #                   selected = "All", choices = c("All", teams_colors_logos$team_abbr)),
-    #       checkboxGroupInput("positions", "Choose Positions (partially working)", 
-    #                          choices = c("RB", "WR", "TE"), selected = c("RB", "WR", "TE")),
-    #         submitButton("Update"),
-    #       
-    #       
-    #         width = 2
-    #     ),
-    # 
-    #     
-    #     mainPanel(
            plotlyOutput("ROC_plot", height = 700),
            br(),
           includeMarkdown("ROC.md"),
            br(),
            br(),
-    splitLayout(htmlOutput("buys"), htmlOutput("sells")),
+    splitLayout(DT::dataTableOutput("buys"), DT::dataTableOutput("sells")),
     
            #htmlOutput("outliers"),
            br(),
@@ -91,11 +73,23 @@ ui <- fluidPage(
 )
 
 # Define server logic required to draw a histogram
-server <- function(input, output) {
+server <- function(input, output, session) {
   
+  
+  observeEvent(input$seasons, {
+    if(input$seasons == 2020){
+      weeks_available <- c(1,2)
+      preset <- 1
+      updateNumericInput(session, inputId = "target_floor", value = 3)
+    }else if(any(input$seasons %in% c(2014:2019))){
+      weeks_available <- c(1:21)
+      preset <- c(1:16)
+    }
+    updateSelectInput(session, inputId = "weeks", choices = weeks_available, selected = preset)
+  })
   #output$logo <- renderImage("ContestedCatchLogo.png")
   ROC_data <- reactive(make_ROC(pbp_data = pbp_all, weeks = input$weeks, positions = c(input$positions, NA),
-                                szn = input$seasons, reception_min = input$reception_floor))
+                                szn = input$seasons, target_min = input$target_floor))
   
   output$ROC_plot <- renderPlotly({
     
@@ -123,8 +117,8 @@ server <- function(input, output) {
   #   get_ROC_outliers(ROC_data(), input$weeks,  n = 7)
   # })
   
-  output$buys <- renderText({get_ROC_buys(ROC_data(), input$weeks)})
-  output$sells <- renderText({get_ROC_sells(ROC_data(), input$weeks)})
+  output$buys <- DT::renderDataTable({get_ROC_buys(ROC_data(), input$weeks)}, rownames = FALSE)
+  output$sells <- DT::renderDataTable({get_ROC_sells(ROC_data(), input$weeks)}, rownames = FALSE)
   
   output$ROC_table <- DT::renderDataTable({
     ROC_table(ROC_data(), input$team[1])

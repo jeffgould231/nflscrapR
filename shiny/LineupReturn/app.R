@@ -10,15 +10,18 @@
 library(shiny)
 library(tidyverse)
 
-wks <- c(1)
+wks <- c(2)
 
 #all_lineups <- map_dfr(wks, function(x){read_csv(glue::glue("week_{x}_lineups_800_proj.csv")) %>%
  #   mutate(week = x)})
 
-all_lineups <- read_csv("week_1_2020_4_2_proj.csv") %>%
-  bind_rows(read_csv("week_1_2020_500_proj.csv")) %>%
-  rename(PROJ = Proj) %>%
-  mutate(week = 1)
+all_lineups <- read_csv("week_2_2020_proj.csv") %>%
+  bind_rows(read_csv("week_2_2020_4_2_proj.csv")) %>%
+  #bind_rows(read_csv("week_1_2020_500_A_proj.csv")) %>%
+  #bind_rows(read_csv("week_1_2020_500_B_proj.csv")) %>%
+  rename(PROJ = P) %>%
+  select(QB, RB, RB_1, WR, WR_1, WR_2, TE, FLEX, DST, PROJ) %>%
+  mutate(week = 2)
 
 disp_lineups <- function(lineups, wk, qb = "None", rb = "None", wr = "None", wr2 = "None"){
   
@@ -64,7 +67,7 @@ ui <- fluidPage(
     sidebarLayout(
         sidebarPanel(
           includeMarkdown("instructions.md"),
-          selectInput("week", "Week", choices = c(wks), selected = 1),
+          selectInput("week", "Week", choices = c(wks), selected = 2),
             selectInput("quarterback", "Choose QB:", choices = c("None", unique(all_lineups$QB))),
             selectInput("runningback", "Choose RB:", choices = c("None", unique(c(all_lineups$RB, all_lineups$RB_1)))),
             selectInput("wide_receiver", "Choose WR:", choices = c("None",
